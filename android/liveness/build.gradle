@@ -1,0 +1,36 @@
+apply plugin: 'com.android.library'
+android {
+    compileSdkVersion 33
+
+    defaultConfig {
+        minSdkVersion 19
+        targetSdkVersion 33
+        vectorDrawables.useSupportLibrary = true
+
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+}
+rootProject.allprojects {
+    repositories {
+        maven {
+            url 'https://public-n3.advai.net/repository/maven-releases/'
+        }
+    }
+}
+dependencies {
+    implementation 'com.android.support:appcompat-v7:28.0.0'
+    implementation 'com.android.support.constraint:constraint-layout:2.0.4'
+    api "com.facebook.react:react-native:0.66.1"
+    api "ai.advance.mobile-sdk.android:liveness-detection:3.6.2"
+}
