@@ -1,5 +1,5 @@
 {
-  "name": "MyProjectAdvance",
+  "name": "example",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -10,20 +10,20 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "crypto-js": "^4.2.0",
-    "react": "17.0.2",
-    "react-native": "0.66.1",
-    "react-native-aaiios-liveness-sdk": "link:./react-native-aaiios-liveness-sdk"
+    "react": "^18.2.0",
+    "react-native": "0.69.12",
+    "react-native-aaiios-liveness-sdk": "../",
+    "yarn": "^1.22.10"
   },
   "devDependencies": {
-    "@babel/core": "^7.12.9",
+    "@babel/core": "^7.12.3",
     "@babel/runtime": "^7.12.5",
     "@react-native-community/eslint-config": "^2.0.0",
     "babel-jest": "^26.6.3",
-    "eslint": "7.14.0",
+    "eslint": "^7.13.0",
     "jest": "^26.6.3",
-    "metro-react-native-babel-preset": "^0.66.2",
-    "react-test-renderer": "17.0.2"
+    "metro-react-native-babel-preset": "^0.64.0",
+    "react-test-renderer": "^18.2.0"
   },
   "jest": {
     "preset": "react-native"

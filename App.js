@@ -9,7 +9,9 @@ import {
   View,
   Button,
   NativeModules,
+  Platform,
 } from 'react-native';
+import AAIIOSLivenessSDK from 'react-native-aaiios-liveness-sdk';
 
 const Section = ({children, title}) => {
   const isDarkMode = useColorScheme() === 'dark';
@@ -39,7 +41,17 @@ const Section = ({children, title}) => {
 
 const App = () => {
   const onVerifyLiveness = async () => {
-    NativeModules.LivenessModule.initSDKByLicense('Indonesia', false);
+    const isIos = Platform.OS === 'ios';
+    const market = isIos ? 'AAILivenessMarketIndonesia' : 'Indonesia';
+    const sdkLiveness = isIos
+      ? AAIIOSLivenessSDK
+      : NativeModules.LivenessModule;
+    if (isIos) {
+      AAIIOSLivenessSDK.sdkVersion(message => {
+        console.log('SDK version is ', message);
+      });
+    }
+    sdkLiveness.initSDKByLicense(market, false);
 
     const token = await fetchToken();
 
@@ -51,57 +63,31 @@ const App = () => {
 
     const license = response.data.license;
 
-    // NativeModules.LivenessModule.bindUser("your user id")
-    NativeModules.LivenessModule.set3DLivenessTimeoutMills(5000);
-    // NativeModules.LivenessModule.setVideoRecorderConfig(true, 60);
-    NativeModules.LivenessModule.isDetectOcclusion(true);
+    // sdkLiveness.bindUser("your user id")
 
-    if (signatureId) {
-      NativeModules.LivenessModule.setSignatureId(signatureId);
+    if (isIos) {
+      AAIIOSLivenessSDK.setActionTimeoutSeconds(5);
+      AAIIOSLivenessSDK.setDetectOcclusion(true);
+    } else {
+      NativeModules.LivenessModule.set3DLivenessTimeoutMills(5000);
+      NativeModules.LivenessModule.isDetectOcclusion(true);
+    }
+    // sdkLiveness.setVideoRecorderConfig(true, 60);
+
+    if (signatureId && !isIos) {
+      sdkLiveness.setSignatureId(signatureId);
     }
 
-    NativeModules.LivenessModule.setLicenseAndCheck(
+    sdkLiveness.setLicenseAndCheck(
       license,
       successCode => {
         console.log('Success: ' + successCode);
 
-        NativeModules.LivenessModule.startLiveness(
-          successJsonData => {
-            const livenessId = successJsonData.livenessId;
-            const imageBase64 = successJsonData.livenessBase64Str;
-      
-
-            fetchScoring(token, signatureId, livenessId, imageBase64);
-
-            // const payload = {
-            //   livenessId: livenessId,
-            //   signatureId: signatureId,
-            //   resultType: imageBase64,
-            // };
-
-            // fetch(
-            //   'https://api.advance.ai/openapi/liveness/v3/detection-result',
-            //   {
-            //     method: 'POST',
-            //     headers: {
-            //       'X-ACCESS-TOKEN': token,
-            //       'Content-Type': 'application/json',
-            //     },
-            //     body: JSON.stringify(payload),
-            //   },
-            // )
-            //   .then(response => response.json())
-            //   .then(data => {
-            //     console.log('Response Scoring:', data);
-            //   })
-            //   .catch(error => {
-            //     console.error('Fetch Error:', error);
-            //   });
-          },
-          failedJsonData => {
-            console.log('Failed Liveness: ' + JSON.stringify(failedJsonData));
-          },
-        );
+        if (isIos) {
+          startLivenessIOS(token, signatureId);
+        } else {
+          startLivenessAnroid(token, signatureId);
+        }
       },
       errorCode => {
         console.error('Error: ' + errorCode);
@@ -121,7 +107,10 @@ const App = () => {
           },
           body: JSON.stringify({
             licenseEffectiveSeconds: 600,
-            applicationId: 'com.myprojectadvance',
+            applicationId:
+              Platform.OS === 'ios'
+                ? 'org.reactjs.native.example.MyProjectAdvance'
+                : 'com.myprojectadvance',
           }),
         },
       );
@@ -221,6 +210,39 @@ const App = () => {
       console.error('Fetch Error:', error);
       return null;
     }
+  };
+
+  const startLivenessIOS = (token, signatureId) => {
+    var config = {};
+    var callback = {
+      onCameraPermissionDenied: (errorKey, errorMessage) => {
+        console.log('>>>>> onCameraPermissionDenied', errorKey, errorMessage);
+        this.setState({message: errorMessage});
+      },
+      onDetectionComplete: (livenessId, base64Img, additionalInfo) => {
+        console.log('>>>>> onDetectionComplete:', additionalInfo);
+        fetchScoring(token, signatureId, livenessId, base64Img);
+      },
+      onDetectionFailed: (errorCode, errorMessage, additionalInfo) => {
+        console.log('>>>>> onDetectionFailed:', errorCode, errorMessage);
+        console.log('additionalInfo:', additionalInfo);
+      },
+    };
+    AAIIOSLivenessSDK.startLiveness(config, callback);
+  };
+
+  const startLivenessAnroid = (token, signatureId) => {
+    NativeModules.LivenessModule.startLiveness(
+      successJsonData => {
+        const livenessId = successJsonData.livenessId;
+        const imageBase64 = successJsonData.livenessBase64Str;
+
+        fetchScoring(token, signatureId, livenessId, imageBase64);
+      },
+      failedJsonData => {
+        console.log('Failed Liveness: ' + JSON.stringify(failedJsonData));
+      },
+    );
   };
 
   return (

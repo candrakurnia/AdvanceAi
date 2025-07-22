@@ -17,6 +17,9 @@ target 'MyProjectAdvance' do
     # Pods for testing
   end
 
+  pod 'AAINetwork', :http => 'https://prod-guardian-cv.oss-ap-southeast-5.aliyuncs.com/sdk/iOS-libraries/AAINetwork/AAINetwork-V1.0.3_resigned.tar.bz2', type: :tbz 
+  pod 'AAILivenessUI', :http => 'https://prod-guardian-cv.oss-ap-southeast-5.aliyuncs.com/sdk/iOS-liveness-detection/3.6.1/iOS-Liveness-SDK-V3.6.1_resigned.tar.bz2', type: :tbz
+
   # Enables Flipper.
   #
   # Note that if you have use_frameworks! enabled, Flipper will not work and
