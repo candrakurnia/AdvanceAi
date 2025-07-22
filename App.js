@@ -127,8 +127,8 @@ const App = () => {
     try {
       const payload = {
         livenessId: livenessId,
-        // signatureId: signatureId,
-        resultType: base64image,
+        signatureId: signatureId,
+        resultType: 'IMAGE_BASE64',
       };
       console.log({payload});
       console.log({token});
@@ -140,12 +140,12 @@ const App = () => {
             'X-ACCESS-TOKEN': token,
             'Content-Type': 'application/json',
           },
-          body: payload,
+          body: JSON.stringify(payload),
         },
       );
-      const data = await response.json();
-      console.log('Response Scoring:', data);
-      return data;
+      const dataRaw = await response.json();
+      console.log('Response Scoring:', dataRaw);
+      return dataRaw.data.livenessScore;
     } catch (error) {
       console.error('Fetch Error:', error);
     }
