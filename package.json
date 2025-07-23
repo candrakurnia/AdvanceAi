@@ -13,7 +13,9 @@
     "crypto-js": "^4.2.0",
     "react": "17.0.2",
     "react-native": "0.66.1",
-    "react-native-aaiios-liveness-sdk": "link:./react-native-aaiios-liveness-sdk"
+    "react-native-aaiios-liveness-sdk": "link:./react-native-aaiios-liveness-sdk",
+    "react-native-vision-camera": "^4.7.1",
+    "rn-fetch-blob": "^0.12.0"
   },
   "devDependencies": {
     "@babel/core": "^7.12.9",

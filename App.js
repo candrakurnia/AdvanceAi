@@ -1,5 +1,5 @@
-import {SHA256} from 'crypto-js';
-import React from 'react';
+import { SHA256 } from 'crypto-js';
+import React, { useRef } from 'react';
 import {
   SafeAreaView,
   StatusBar,
@@ -12,264 +12,289 @@ import {
   Platform,
 } from 'react-native';
 import AAIIOSLivenessSDK from 'react-native-aaiios-liveness-sdk';
-
-const Section = ({children, title}) => {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-};
+import { RNCamera } from 'react-native-camera';
+import { Camera, useCameraDevices } from 'react-native-vision-camera';
+import { captureRef } from 'react-native-view-shot';
+import RNFetchBlob from 'rn-fetch-blob';
 
 const App = () => {
-  const onVerifyLiveness = async () => {
-    const isIos = Platform.OS === 'ios';
-    const market = isIos ? 'AAILivenessMarketIndonesia' : 'Indonesia';
-    const sdkLiveness = isIos
-      ? AAIIOSLivenessSDK
-      : NativeModules.LivenessModule;
-    if (isIos) {
-      AAIIOSLivenessSDK.sdkVersion(message => {
-        console.log('SDK version is ', message);
-      });
-    }
-    sdkLiveness.initSDKByLicense(market, false);
+  const cameraRef = useRef(null);
 
-    const token = await fetchToken();
+  const App = () => {
+    const cameraRef = useRef(null);
+    const viewRef = useRef(null);
+    const devices = useCameraDevices();
+    const device = devices.back;
+    const [hasPermission, setHasPermission] = useState(false);
 
-    const signatureId = await fetchSignatureId(token);
+    useEffect(() => {
+      (async () => {
+        const status = await Camera.requestCameraPermission();
+        setHasPermission(status === 'authorized');
+      })();
+    }, []);
 
-    if (!token) return;
+    const onVerifyKTP = async () => {
+      try {
+        if (!cameraRef.current) return;
 
-    const response = await fetchLicense(token);
+        const snapshot = await cameraRef.current.takePhoto({
+          qualityPrioritization: 'balanced',
+        });
 
-    const license = response.data.license;
+        const photoPath = snapshot.path;
+        const token = await fetchToken();
 
-    // sdkLiveness.bindUser("your user id")
-
-    if (isIos) {
-      AAIIOSLivenessSDK.setActionTimeoutSeconds(5);
-      AAIIOSLivenessSDK.setDetectOcclusion(true);
-    } else {
-      NativeModules.LivenessModule.set3DLivenessTimeoutMills(5000);
-      NativeModules.LivenessModule.isDetectOcclusion(true);
-    }
-    // sdkLiveness.setVideoRecorderConfig(true, 60);
-
-    if (signatureId && !isIos) {
-      sdkLiveness.setSignatureId(signatureId);
-    }
-
-    sdkLiveness.setLicenseAndCheck(
-      license,
-      successCode => {
-        console.log('Success: ' + successCode);
-
-        if (isIos) {
-          startLivenessIOS(token, signatureId);
-        } else {
-          startLivenessAnroid(token, signatureId);
-        }
-      },
-      errorCode => {
-        console.error('Error: ' + errorCode);
-      },
-    );
-  };
-
-  const fetchLicense = async token => {
-    try {
-      const response = await fetch(
-        'https://api.advance.ai/openapi/liveness/v1/auth-license',
-        {
-          method: 'POST',
-          headers: {
-            'X-ACCESS-TOKEN': token,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            licenseEffectiveSeconds: 600,
-            applicationId:
-              Platform.OS === 'ios'
-                ? 'org.reactjs.native.example.MyProjectAdvance'
-                : 'com.myprojectadvance',
-          }),
-        },
-      );
-
-      const data = await response.json();
-      console.log('Response:', data);
-      return data;
-    } catch (error) {
-      console.error('Fetch Error:', error);
-    }
-  };
-
-  const fetchScoring = async (token, signatureId, livenessId, base64image) => {
-    try {
-      const payload = {
-        livenessId: livenessId,
-        signatureId: signatureId,
-        resultType: 'IMAGE_BASE64',
-      };
-      console.log({payload});
-      console.log({token});
-      const response = await fetch(
-        'https://api.advance.ai/openapi/liveness/v3/detection-result',
-        {
-          method: 'POST',
-          headers: {
-            'X-ACCESS-TOKEN': token,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-      const dataRaw = await response.json();
-      console.log('Response Scoring:', dataRaw);
-      return dataRaw.data.livenessScore;
-    } catch (error) {
-      console.error('Fetch Error:', error);
-    }
-  };
-
-  const fetchToken = async () => {
-    try {
-      const secretKey = '5f463360c65fbbb7';
-      const accessKey = 'b5008258bdd8a455';
-      const timestamp = (Date.now() + 300).toString();
-
-      console.log({timestamp});
-
-      const rawSignature = accessKey + secretKey + timestamp;
-
-      const signature = SHA256(rawSignature).toString();
-
-      const payload = {
-        accessKey,
-        signature,
-        timestamp,
-        periodSecond: 3600,
-      };
-
-      console.log({payload});
-
-      const response = await fetch(
-        'https://api.advance.ai/openapi/auth/ticket/v1/generate-token',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-      const dataRaw = await response.json();
-      console.log('Response Token:', dataRaw.data.token);
-      return dataRaw.data.token;
-    } catch (error) {
-      console.error('Fetch Error:', error);
-      return null;
-    }
-  };
-
-  const fetchSignatureId = async token => {
-    try {
-      const response = await fetch(
-        'https://api.advance.ai/liveness/ext/v1/generate-signature-id',
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
+        const response = await RNFetchBlob.fetch(
+          'POST',
+          'https://api.advance.ai/openapi/face-recognition/v3/ocr-ktp-check',
+          {
+            'Content-Type': 'multipart/form-data',
             'X-ACCESS-TOKEN': token,
           },
-        },
-      );
-      const dataRaw = await response.json();
-      console.log('Response Signature:', dataRaw.data.signatureId);
-      return dataRaw.data.signatureId;
-    } catch (error) {
-      console.error('Fetch Error:', error);
-      return null;
-    }
-  };
+          [
+            {
+              name: 'ocrImage',
+              filename: 'ktp.jpg',
+              type: 'image/jpeg',
+              data: RNFetchBlob.wrap(photoPath),
+            },
+          ],
+        );
 
-  const startLivenessIOS = (token, signatureId) => {
-    var config = {};
-    var callback = {
-      onCameraPermissionDenied: (errorKey, errorMessage) => {
-        console.log('>>>>> onCameraPermissionDenied', errorKey, errorMessage);
-        this.setState({message: errorMessage});
-      },
-      onDetectionComplete: (livenessId, base64Img, additionalInfo) => {
-        console.log('>>>>> onDetectionComplete:', additionalInfo);
-        fetchScoring(token, signatureId, livenessId, base64Img);
-      },
-      onDetectionFailed: (errorCode, errorMessage, additionalInfo) => {
-        console.log('>>>>> onDetectionFailed:', errorCode, errorMessage);
-        console.log('additionalInfo:', additionalInfo);
-      },
+        const data = JSON.parse(response.data);
+        console.log('OCR Result:', data);
+      } catch (err) {
+        console.error('Upload Error:', err);
+      }
     };
-    AAIIOSLivenessSDK.startLiveness(config, callback);
-  };
 
-  const startLivenessAnroid = (token, signatureId) => {
-    NativeModules.LivenessModule.startLiveness(
-      successJsonData => {
-        const livenessId = successJsonData.livenessId;
-        const imageBase64 = successJsonData.livenessBase64Str;
+    const onVerifyLiveness = async () => {
+      const isIos = Platform.OS === 'ios';
+      const market = isIos ? 'AAILivenessMarketIndonesia' : 'Indonesia';
+      const sdkLiveness = isIos
+        ? AAIIOSLivenessSDK
+        : NativeModules.LivenessModule;
 
-        fetchScoring(token, signatureId, livenessId, imageBase64);
-      },
-      failedJsonData => {
-        console.log('Failed Liveness: ' + JSON.stringify(failedJsonData));
-      },
+      if (isIos) {
+        AAIIOSLivenessSDK.sdkVersion(message => {
+          console.log('SDK version is ', message);
+        });
+      }
+      sdkLiveness.initSDKByLicense(market, false);
+
+      const token = await fetchToken();
+      const signatureId = await fetchSignatureId(token);
+      if (!token) return;
+
+      const response = await fetchLicense(token);
+      const license = response.data.license;
+
+      if (isIos) {
+        AAIIOSLivenessSDK.setActionTimeoutSeconds(5);
+        AAIIOSLivenessSDK.setDetectOcclusion(true);
+      } else {
+        NativeModules.LivenessModule.set3DLivenessTimeoutMills(5000);
+        NativeModules.LivenessModule.isDetectOcclusion(true);
+      }
+
+      if (signatureId && !isIos) {
+        sdkLiveness.setSignatureId(signatureId);
+      }
+
+      sdkLiveness.setLicenseAndCheck(
+        license,
+        successCode => {
+          console.log('Success: ' + successCode);
+
+          if (isIos) {
+            startLivenessIOS(token, signatureId);
+          } else {
+            startLivenessAndroid(token, signatureId);
+          }
+        },
+        errorCode => {
+          console.error('Error: ' + errorCode);
+        },
+      );
+    };
+
+    const fetchLicense = async token => {
+      try {
+        const response = await fetch(
+          'https://api.advance.ai/openapi/liveness/v1/auth-license',
+          {
+            method: 'POST',
+            headers: {
+              'X-ACCESS-TOKEN': token,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              licenseEffectiveSeconds: 600,
+              applicationId:
+                Platform.OS === 'ios'
+                  ? 'org.reactjs.native.example.MyProjectAdvance'
+                  : 'com.myprojectadvance',
+            }),
+          },
+        );
+
+        const data = await response.json();
+        console.log('Response:', data);
+        return data;
+      } catch (error) {
+        console.error('Fetch Error:', error);
+      }
+    };
+
+    const fetchScoring = async (token, signatureId, livenessId, base64image) => {
+      try {
+        const payload = {
+          livenessId: livenessId,
+          signatureId: signatureId,
+          resultType: 'IMAGE_BASE64',
+        };
+        const response = await fetch(
+          'https://api.advance.ai/openapi/liveness/v3/detection-result',
+          {
+            method: 'POST',
+            headers: {
+              'X-ACCESS-TOKEN': token,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+        const dataRaw = await response.json();
+        console.log('Response Scoring:', dataRaw);
+        return dataRaw.data.livenessScore;
+      } catch (error) {
+        console.error('Fetch Error:', error);
+      }
+    };
+
+    const fetchToken = async () => {
+      try {
+        const secretKey = '5f463360c65fbbb7';
+        const accessKey = 'b5008258bdd8a455';
+        const timestamp = (Date.now() + 300).toString();
+        const rawSignature = accessKey + secretKey + timestamp;
+        const signature = SHA256(rawSignature).toString();
+
+        const payload = {
+          accessKey,
+          signature,
+          timestamp,
+          periodSecond: 3600,
+        };
+
+        const response = await fetch(
+          'https://api.advance.ai/openapi/auth/ticket/v1/generate-token',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+        const dataRaw = await response.json();
+        console.log('Response Token:', dataRaw.data.token);
+        return dataRaw.data.token;
+      } catch (error) {
+        console.error('Fetch Error:', error);
+        return null;
+      }
+    };
+
+    const fetchSignatureId = async token => {
+      try {
+        const response = await fetch(
+          'https://api.advance.ai/liveness/ext/v1/generate-signature-id',
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-ACCESS-TOKEN': token,
+            },
+          },
+        );
+        const dataRaw = await response.json();
+        console.log('Response Signature:', dataRaw.data.signatureId);
+        return dataRaw.data.signatureId;
+      } catch (error) {
+        console.error('Fetch Error:', error);
+        return null;
+      }
+    };
+
+    const startLivenessIOS = (token, signatureId) => {
+      const config = {};
+      const callback = {
+        onCameraPermissionDenied: (errorKey, errorMessage) => {
+          console.log('>>>>> onCameraPermissionDenied', errorKey, errorMessage);
+        },
+        onDetectionComplete: (livenessId, base64Img, additionalInfo) => {
+          console.log('>>>>> onDetectionComplete:', additionalInfo);
+          fetchScoring(token, signatureId, livenessId, base64Img);
+        },
+        onDetectionFailed: (errorCode, errorMessage, additionalInfo) => {
+          console.log('>>>>> onDetectionFailed:', errorCode, errorMessage);
+          console.log('additionalInfo:', additionalInfo);
+        },
+      };
+      AAIIOSLivenessSDK.startLiveness(config, callback);
+    };
+
+    const startLivenessAndroid = (token, signatureId) => {
+      NativeModules.LivenessModule.startLiveness(
+        successJsonData => {
+          const livenessId = successJsonData.livenessId;
+          const imageBase64 = successJsonData.livenessBase64Str;
+
+          fetchScoring(token, signatureId, livenessId, imageBase64);
+        },
+        failedJsonData => {
+          console.log('Failed Liveness: ' + JSON.stringify(failedJsonData));
+        },
+      );
+    };
+
+    return (
+      <SafeAreaView style={styles.container}>
+        {device != null && hasPermission && (
+          <Camera
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            device={device}
+            isActive={true}
+            photo={true}
+          />
+        )}
+        <View style={styles.buttonWrapper}>
+          <Button title="Verify Liveness" onPress={onVerifyLiveness} />
+          <View style={styles.spacing} />
+          <Button title="Ambil Foto & Upload OCR KTP" onPress={onVerifyKTP} />
+        </View>
+      </SafeAreaView>
     );
   };
-
-  return (
-    <SafeAreaView>
-      <View>
-        <Button title="Verify Liveness" onPress={onVerifyLiveness} />
-      </View>
-    </SafeAreaView>
-  );
 };
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  buttonWrapper: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    flexDirection: 'column',
+    justifyContent: 'center',
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
+  spacing: {
+    height: 16,
   },
 });
 
